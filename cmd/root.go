@@ -18,10 +18,19 @@ var cfgFile string
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "randrex",
-	Short: "Usage: randrex [OPTION]... Regexp",
+	Short: "Usage: randrex [generate|parse] [OPTION]... Regexp",
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
-	Run: runRandrex,
+}
+
+var generateCmd = &cobra.Command{
+	Use: "generate",
+	Run: runGenerateCommand,
+}
+
+var parseCmd = &cobra.Command{
+	Use: "parse",
+	Run: runParseCommand,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -44,9 +53,13 @@ func init() {
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-	rootCmd.Flags().StringP("pattern", "p", "", "")
-	rootCmd.Flags().IntP("number", "n", 1, "Number of print")
+	generateCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	generateCmd.Flags().StringP("pattern", "p", "", "")
+	generateCmd.Flags().IntP("number", "n", 1, "Number of print")
+	rootCmd.AddCommand(generateCmd)
+
+	parseCmd.Flags().StringP("pattern", "p", "", "")
+	rootCmd.AddCommand(parseCmd)
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -73,7 +86,7 @@ func initConfig() {
 	}
 }
 
-func runRandrex(cmd *cobra.Command, args []string) {
+func runGenerateCommand(cmd *cobra.Command, args []string) {
 	pattern, _ := cmd.Flags().GetString("pattern")
 
 	re, err := syntax.Parse(pattern, syntax.Perl)
@@ -111,5 +124,31 @@ func generateFromNode(node *syntax.Regexp, result *[]rune) {
 		}
 	default:
 		// 他のノード型は無視する
+	}
+}
+
+func runParseCommand(cmd *cobra.Command, args []string) {
+	pattern := args[0]
+
+	re, err := syntax.Parse(pattern, syntax.Perl)
+	if err != nil {
+		fmt.Println("Failed to parse pattern:", err)
+		return
+	}
+
+	printRegexNode(re, 0)
+}
+
+func printRegexNode(node *syntax.Regexp, indent int) {
+	fmt.Printf("%*sop: %s\n", indent, "", node.Op)
+	if node.Op == syntax.OpRepeat {
+		fmt.Printf("%*smin,max: %d,%d\n", indent, "", node.Min, node.Max)
+	}
+	fmt.Printf("%*sflags: %v\n", indent, "", node.Flags)
+	fmt.Printf("%*srune: %v\n", indent, "", string(node.Rune))
+	fmt.Printf("%*ssub: %d\n", indent, "", len(node.Sub))
+
+	for _, sub := range node.Sub {
+		printRegexNode(sub, indent+2)
 	}
 }
