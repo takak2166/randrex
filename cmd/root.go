@@ -13,6 +13,8 @@ import (
 	"github.com/spf13/viper"
 )
 
+var PRINT_MAX int = 10
+
 var cfgFile string
 
 // rootCmd represents the base command when called without any subcommands
@@ -54,11 +56,9 @@ func init() {
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
 	generateCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-	generateCmd.Flags().StringP("pattern", "p", "", "")
 	generateCmd.Flags().IntP("number", "n", 1, "Number of print")
 	rootCmd.AddCommand(generateCmd)
 
-	parseCmd.Flags().StringP("pattern", "p", "", "")
 	rootCmd.AddCommand(parseCmd)
 }
 
@@ -87,15 +87,28 @@ func initConfig() {
 }
 
 func runGenerateCommand(cmd *cobra.Command, args []string) {
-	pattern, _ := cmd.Flags().GetString("pattern")
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "No arguments provided.")
+		return
+	}
+	pattern := args[0]
 
-	re, err := syntax.Parse(pattern, syntax.Perl)
+	number, err := cmd.Flags().GetInt("number")
 	if err != nil {
+		fmt.Fprintln(os.Stderr, "Failed to get number:", number)
 		return
 	}
 
-	generatedStr := genRandomStringFromRegex(re)
-	fmt.Println(generatedStr)
+	re, err := syntax.Parse(pattern, syntax.Perl)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Failed to parse pattern:", pattern)
+		return
+	}
+
+	for i := 0; i < number; i++ {
+		generatedStr := genRandomStringFromRegex(re)
+		fmt.Println(generatedStr)
+	}
 }
 
 func genRandomStringFromRegex(re *syntax.Regexp) string {
@@ -106,10 +119,39 @@ func genRandomStringFromRegex(re *syntax.Regexp) string {
 
 func generateFromNode(node *syntax.Regexp, result *[]rune) {
 	switch node.Op {
-	case syntax.OpCharClass:
-		*result = append(*result, rune(node.Rune[rand.Intn(len(node.Rune))]))
-	case syntax.OpRepeat:
-		for i := 0; i < node.Min; i++ {
+	case syntax.OpLiteral:
+		*result = append(*result, node.Rune...)
+	case syntax.OpCharClass, syntax.OpAnyCharNotNL:
+		var randRunes []rune
+		for i := 0; i < len(node.Rune); i += 2 {
+			if node.Rune[i+1] != node.Rune[i] {
+				randRunes = append(randRunes, rune(rand.Intn(int(node.Rune[i+1]-node.Rune[i]))+int(node.Rune[i])))
+			} else {
+				randRunes = append(randRunes, node.Rune[i])
+			}
+		}
+		if len(randRunes) != 0 {
+			*result = append(*result, rune(randRunes[rand.Intn(len(randRunes))]))
+		} else {
+			*result = append(*result, rune(rand.Intn(96)+31)) // from " " to "~" in ASCII
+		}
+	case syntax.OpStar, syntax.OpPlus, syntax.OpRepeat:
+		min := 0
+		max := PRINT_MAX
+		switch node.Op {
+		case syntax.OpRepeat:
+			min = node.Min
+			if node.Max >= 0 {
+				max = node.Max
+			}
+		case syntax.OpPlus:
+			min = 1
+		}
+		j := min
+		if max != min {
+			j = rand.Intn(max-min) + min
+		}
+		for i := 0; i < j; i++ {
 			generateFromNode(node.Sub[0], result)
 		}
 	case syntax.OpConcat:
@@ -123,16 +165,20 @@ func generateFromNode(node *syntax.Regexp, result *[]rune) {
 			generateFromNode(sub, result)
 		}
 	default:
-		// 他のノード型は無視する
+		// ignore other case
 	}
 }
 
 func runParseCommand(cmd *cobra.Command, args []string) {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "No arguments provided.")
+		return
+	}
 	pattern := args[0]
 
 	re, err := syntax.Parse(pattern, syntax.Perl)
 	if err != nil {
-		fmt.Println("Failed to parse pattern:", err)
+		fmt.Fprintln(os.Stderr, "Failed to parse pattern:", pattern)
 		return
 	}
 

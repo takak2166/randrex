@@ -10,6 +10,8 @@ func TestGenRandomStringFromRegex(t *testing.T) {
 	patterns := []string{
 		`^[a-z]{3}\d{2}[A-Z]{2}$`,
 		`^hoge_.*`,
+		`^[a-zA-Z0-9_.+-]+@([a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]*\.)+[a-zA-Z]{2,}$`,
+		`https?://[\w/:%#\$&\?\(\)~\.=\+\-]+`,
 	}
 
 	for _, pattern := range patterns {
