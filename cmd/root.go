@@ -26,13 +26,15 @@ var rootCmd = &cobra.Command{
 }
 
 var generateCmd = &cobra.Command{
-	Use: "generate",
-	Run: runGenerateCommand,
+	Use:   "generate",
+	Short: "Generate strings matching a regular expression",
+	Run:   runGenerateCommand,
 }
 
 var parseCmd = &cobra.Command{
-	Use: "parse",
-	Run: runParseCommand,
+	Use:   "parse",
+	Short: "Parse regular expression",
+	Run:   runParseCommand,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
